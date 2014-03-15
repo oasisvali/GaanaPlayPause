@@ -1,0 +1,15 @@
+{
+  "name": "Gaana Play/Pause",
+  "version": "1.0",
+  "description": "play/pause the Gaana.com web app from the toolbar",
+  "browser_action": {
+    "default_icon": "icon-play.png"
+  },
+  "default_locale": "en",
+  "content_scripts": [ {
+      "js": [ "jquery.min.js", "gaana.js" ],
+      "matches": [ "http://gaana.com/*" ],
+      "run_at": "document_end"
+   } ],
+   "permissions": [ "http://gaana.com/*" ]
+}
