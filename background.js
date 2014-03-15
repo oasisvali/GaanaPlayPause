@@ -1,51 +1,40 @@
-var pandoraTabId = null;
-var pandoraWindowId = null;
-var alreadyClicked = false;
+var gaanaTabId = null;
+var gaanaWindowId = null;
 var DEBUG = false;
-var requestTimer;
+var state_play = false;
 
-function getPandoraUrl() {
-  return "http://www.pandora.com/";
+function getGaanaUrl() {
+  return "http://www.gaana.com/";
 }
 
-function isPandoraUrl(url) {
-  // Return whether the URL starts with the Pandora prefix.
-  return url.indexOf(getPandoraUrl()) == 0;
+function getHomeStationUrl() {
+  return getGaanaUrl() + "radio/meethi-mirchi/";
 }
 
-function stillListening() {
-  if (DEBUG)
-  {
-    console.log("Yes Pandora, I'm still listening...");
-  }
-  chrome.tabs.executeScript(pandoraTabId, {
-    code: "$('.still_listening').click();"
-  });
+function isGaanaUrl(url) {
+  // Return whether the URL starts with the Gaana prefix.
+  return url.indexOf(getGaanaUrl()) == 0;
 }
 
 function onInit() {
-  if (DEBUG)
-  {
-    console.log("onInit");
-  }
-  if (pandoraTabId != null) {
-    chrome.tabs.executeScript(pandoraTabId, {
-      code: 'var pauseButton = document.getElementsByClassName("pauseButton")[0]; \
-             var playButton = document.getElementsByClassName("playButton")[0]; \
-             if (playButton.style.display == "none" ) { "playing"; } \
+  if (gaanaTabId != null) {
+    chrome.tabs.executeScript(gaanaTabId, {
+      code: 'if ($(".spritePlayer.playPause").hasClass("play")) { "playing"; } \
              else { "paused"; }'
     }, function (callback) {
       if (callback == "playing") {
-        chrome.browserAction.setIcon({path:"action-pause.png"});
+        chrome.browserAction.setIcon({path:"state-play.png"});
+        state_play = true;
       } else if (callback == "paused") {
-        chrome.browserAction.setIcon({path:"action-play.png"});
+        chrome.browserAction.setIcon({path:"state-pause.png"});
+        state_play = false;
       }
     });
   }
 }
 
-function checkIfPandoraHasScripts() {
-  chrome.tabs.sendMessage(pandoraTabId, {greeting: "hello"}, function(response) {
+function checkIfGaanaHasScripts() {
+  chrome.tabs.sendMessage(gaanaTabId, {greeting: "hello"}, function(response) {
     if (response) {
         if (DEBUG)
         {
@@ -57,151 +46,107 @@ function checkIfPandoraHasScripts() {
         {
           console.log("Content scripts not there, injecting content scripts");
         }
-        chrome.tabs.executeScript(pandoraTabId, {file: "jquery.min.js"});
-        chrome.tabs.executeScript(pandoraTabId, {file: "pppandora.js"});
-        chrome.tabs.executeScript(pandoraTabId, {code: "getSongInfo();"});
+        chrome.tabs.executeScript(gaanaTabId, {file: "jquery.min.js"});
+        chrome.tabs.executeScript(gaanaTabId, {file: "gaana.js"});
+        // chrome.tabs.executeScript(gaanaTabId, {code: "getSongInfo();"});
     }
   });
 }
 
-function pandoraTabRemoved(tabId, oRemoveInfo) {
+function gaanaTabRemoved(tabId, oRemoveInfo) {
   if (DEBUG)
   {
-    console.log(tabId + " " + pandoraTabId);
+    console.log(tabId + " " + gaanaTabId);
   }
-  if (tabId == pandoraTabId) {
+  if (tabId == gaanaTabId) {
     if (DEBUG)
     {
-      console.log("Pandora tab closed! Nooooooooooooooo!");
+      console.log("Gaana tab closed! Nooooooooooooooo!");
     }
-    chrome.browserAction.setIcon({path:"action-play.png"});
-    pandoraTabId = null;
-    window.clearTimeout(requestTimer);
+    chrome.browserAction.setIcon({path:"state-pause.png"});
+    state_play = false;
+    gaanaTabId = null;
   }
 }
 
 function getAllWindows() {
   chrome.windows.getAll({populate:true},function (windows) {
     for (var i = 0; i < windows.length; i++) {
-      getPandoraTabId(windows[i].id);
+      getGaanaTabId(windows[i].id);
     };
   });
 }
 
-function getPandoraTabId(windowId) {
+function getGaanaTabId(windowId) {
   chrome.tabs.getAllInWindow(windowId, function(tabs) {
     for (var i = 0, tab; tab = tabs[i]; i++) {
-      if (tab.url && isPandoraUrl(tab.url)) {
+      if (tab.url && isGaanaUrl(tab.url)) {
         if (DEBUG)
         {
           console.log("Found tab id: " + tab.id + " in window: " + windowId);
         }
-        pandoraTabId = tab.id;
-        pandoraWindowId = window.id;
-        onPandoraTabFound();
-        checkIfPandoraHasScripts();
+        gaanaTabId = tab.id;
+        gaanaWindowId = window.id;
+        checkIfGaanaHasScripts();
       }
     }
   });
 }
 
-function onPandoraTabFound() {
-  chrome.browserAction.setIcon({path:"action-pause.png"});
-  window.clearTimeout(requestTimer);
-  requestTimer = window.setInterval(stillListening, 60 * 1000);
-}
-
-function goToPandora() {
-  if (alreadyClicked && pandoraTabId != null) {
-    //Yes, Previous Click Detected
-
-    //Clear timer already set in earlier Click
-    clearTimeout(timer);
-    if (DEBUG)
-    {
-      console.log("Double click - skipping song");
+function goToGaana() {
+  if (gaanaTabId != null) {   // Gaana tab is already open
+    
+    if (state_play) {
+      chrome.browserAction.setIcon({path:"state-pause.png"});
+      state_play = false;
+    }
+    else {
+      chrome.browserAction.setIcon({path:"state-play.png"});
+      state_play = true;
     }
 
-    chrome.tabs.executeScript(pandoraTabId, {
-      code: "$('.skipButton').click();"
+    chrome.tabs.executeScript(gaanaTabId, {
+      code: "$('.spritePlayer.playPause').click();"
     });
 
-    //Clear all Clicks
-    alreadyClicked = false;
     return;
   }
-
-  alreadyClicked = true;
-
-  //Add a timer to detect next click to a sample of 250
-  timer = setTimeout(function () {
-    //No more clicks so, this is a single click
-    if (DEBUG)
-    {
-      console.log("Single click");
-    }
-
-    if (DEBUG)
-    {
-      console.log('Going to pandora...');
-    }
-
-    if (pandoraTabId != null)
-    {
-      chrome.tabs.executeScript(pandoraTabId, {
-        code: "$('.pauseButton:visible, .playButton:visible').click();"
-      });
-    }
-    else
-    {
-      chrome.browserAction.setIcon({path:"action-pause.png"});
-      chrome.tabs.create({url: getPandoraUrl()});
-      getAllWindows();
-    }
-
-    //Clear all timers
-    clearTimeout(timer);
-
-    //Ignore clicks
-    alreadyClicked = false;
-  }, 250);
-}
-
-function onAlarm(alarm) {
-  if (DEBUG)
+  else  // no Gaana tab is open
   {
-    console.log('Got alarm', alarm);
-  }
-  if (alarm && alarm.name == 'stillListening') {
-    stillListening();
+    chrome.tabs.create({url: getHomeStationUrl(), pinned: true});
+    chrome.browserAction.setIcon({path:"state-play.png"});
+    state_play = true;
+    getAllWindows();
   }
 }
 
 function onMessage(request, sender, sendResponse) {
   switch (request.message) {
     case "paused":
-      chrome.browserAction.setIcon({path:"action-play.png"});
+      chrome.browserAction.setIcon({path:"state-pause.png"});
+      state_play = false;
       break;
     case "playing":
-      chrome.browserAction.setIcon({path:"action-pause.png"});
+      chrome.browserAction.setIcon({path:"state-play.png"});
+      state_play = true;
       break;
-    case "songChanged":
-      chrome.browserAction.setTitle({ title: "Song: " + request.songTitle + "\nArtist: " + request.songArtist + "\nAlbum: " + request.songAlbum });
-      if (parseBool(localStorage["showNotifications"])) {
-        var options = {
-          type: "list",
-          title: request.songTitle,
-          message: "",
-          iconUrl: request.songArt,
-          items: [
-            { title: "Artist", message: request.songArtist},
-            { title: "Album", message: request.songAlbum}
-          ]
-        };
-        chrome.notifications.create(options.title, options, function () {});
-        setTimeout(function() { chrome.notifications.clear(options.title, function() {}); }, 5000);
-      }
-      break;
+    // case "songChanged":
+    //   chrome.browserAction.setTitle({ title: "Song: " + request.songTitle + "\nArtist: " + request.songArtist + "\nAlbum: " + request.songAlbum });
+    //   if (parseBool(localStorage["showNotifications"])) {
+    //     var options = {
+    //       type: "list",
+    //       title: request.songTitle,
+    //       message: "",
+    //       iconUrl: request.songArt,
+    //       items: [
+    //         { title: "Artist", message: request.songArtist},
+    //         { title: "Album", message: request.songAlbum}
+    //       ]
+    //     };
+    //     chrome.notifications.create(options.title, options, function () {});
+    //     setTimeout(function() { chrome.notifications.clear(options.title, function() {}); }, 5000);
+    //   }
+    //   break;
   }
 }
 
@@ -210,34 +155,34 @@ function onCreated(tab) {
   {
     console.log("Tab Created", tab);
   }
-  if (isPandoraUrl(tab.url)) {
-    chrome.browserAction.setIcon({path:"action-pause.png"});
-    pandoraTabId = tab.id;
-    window.clearTimeout(requestTimer);
-    requestTimer = window.setInterval(stillListening, 60 * 1000);
+  if (isGaanaUrl(tab.url)) {
+    chrome.browserAction.setIcon({path:"state-pause.png"});
+    state_play = false;
+    gaanaTabId = tab.id;
   }
 }
 
 function onUpdated(tabId, oChangeInfo, tab) {
-  window.clearTimeout(requestTimer);
   if (DEBUG)
   {
     console.log("Tab Updated", tab);
   }
-  if (tab.status == "complete" && isPandoraUrl(tab.url)) {
-    chrome.browserAction.setIcon({ path:"action-pause.png" });
-    pandoraTabId = tab.id;
-    requestTimer = window.setInterval(stillListening, 60 * 1000);
+  if (tab.status == "complete" && isGaanaUrl(tab.url)) {  // New Gaana tab was created
+    chrome.browserAction.setIcon({ path:"state-pause.png" });
+    state_play = false;
+    gaanaTabId = tab.id;
   }
-  else if (tab.id == pandoraTabId && !isPandoraUrl(tab.url)) {
-    chrome.browserAction.setIcon({ path:"action-play.png" });
-    pandoraTabId = null;
+  else if (tab.id == gaanaTabId && !isGaanaUrl(tab.url)) {  // Gaana tab was closed
+    chrome.browserAction.setIcon({ path:"state-pause.png" });
+    state_play = false;
+    gaanaTabId = null;
   }
 }
 
+chrome.browserAction.setIcon({path:"state-pause.png"});
 getAllWindows();
-chrome.browserAction.onClicked.addListener(goToPandora);
-chrome.tabs.onRemoved.addListener(pandoraTabRemoved);
+chrome.browserAction.onClicked.addListener(goToGaana);
+chrome.tabs.onRemoved.addListener(gaanaTabRemoved);
 chrome.runtime.onMessage.addListener(onMessage);
 chrome.runtime.onInstalled.addListener(onInit);
 chrome.tabs.onCreated.addListener(onCreated);
