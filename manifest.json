@@ -11,5 +11,6 @@
       "matches": [ "http://gaana.com/*" ],
       "run_at": "document_end"
    } ],
-   "permissions": [ "http://gaana.com/*", "tabs" ]
+   "permissions": [ "http://gaana.com/*", "tabs" ],
+   "manifest_version": 2
 }
